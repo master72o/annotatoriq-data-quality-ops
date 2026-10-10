@@ -266,3 +266,12 @@ Root cause analysis of Phase 1 (Before Guidelines) failures revealed three key d
 
 **AI Data Quality Specialist & LLM QA Engineer**  
 *Specializing in Inter-Annotator Agreement Statistics, Krippendorff's Alpha, and Guideline Calibration.*
+
+---
+
+## 🔬 Benchmark Methodology & Results Provenance
+
+> [!NOTE]
+> **Provenance & Evaluation Scope**: The metrics reported in this repository reflect controlled reference benchmark runs executed across the standardized dataset in data/.
+> - **Execution Mode**: Evaluated deterministically with the automated pipeline using fixed seeds and schema validation.
+> - **Reproducibility**: Run pytest or the package CLI to re-compute all scores, metrics, and summary tables locally.
