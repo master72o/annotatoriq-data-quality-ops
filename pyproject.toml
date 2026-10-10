@@ -3,15 +3,16 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "llm-annotation-quality-lab"
-version = "1.0.0"
-description = "A research project analyzing inter-annotator agreement metrics, Krippendorff's Alpha, Fleiss' Kappa, and before vs after guideline calibration."
+name = "annotatoriq-data-quality-ops"
+version = "2.0.0"
+description = "Enterprise AI Training Data Quality Operations, Defect Detection, Agreement Analytics & Adjudication Governance Platform."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [
-    { name = "AI Data Quality Specialist", email = "quality@example.com" }
+    { name = "Munir", email = "master72o@users.noreply.github.com" }
 ]
 dependencies = [
+    "pydantic>=2.0.0",
     "numpy>=1.22.0",
     "pandas>=1.5.0",
     "matplotlib>=3.5.0",
@@ -20,6 +21,7 @@ dependencies = [
     "scikit-learn>=1.0.0",
     "statsmodels>=0.13.0",
     "pyyaml>=6.0",
+    "streamlit>=1.30.0",
 ]
 
 [project.optional-dependencies]
@@ -29,7 +31,8 @@ dev = [
 ]
 
 [project.scripts]
-quality-lab = "quality_lab.cli:main"
+annotatoriq = "annotatoriq.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["quality_lab*"]
+where = ["src", "."]
+include = ["annotatoriq*", "quality_lab*"]

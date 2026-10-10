@@ -1,49 +1,58 @@
 """
-Unit tests for annotation quality lab data schemas.
+Unit tests for AnnotatorIQ Pydantic schemas and boundary validators.
 """
 
 import pytest
-from quality_lab.schema import FactualErrorLabel, SingleAnnotation, AnnotationTaskItem
+from annotatoriq.schema import (
+    TaskType,
+    DefectType,
+    SpanEntity,
+    BoundingBox,
+    AudioSegment,
+    AnnotationItem,
+)
 
 
-def test_factual_error_label_enum():
-    assert FactualErrorLabel.NO_ERROR.value == "no_error"
-    assert FactualErrorLabel.FACTUAL_ERROR.value == "factual_error"
-    assert FactualErrorLabel.UNCERTAIN.value == "uncertain"
+def test_span_entity_valid():
+    span = SpanEntity(label="PER", start=0, end=10, text="John Doe")
+    assert span.start == 0
+    assert span.end == 10
+    assert span.label == "PER"
 
 
-def test_single_annotation_serialization():
-    ann = SingleAnnotation(
-        annotator_id="ann_1",
-        label=FactualErrorLabel.FACTUAL_ERROR,
-        error_category="wrong_number",
-        rationale="Incorrect math calculation",
-        is_simulated=False
+def test_span_entity_inverted_raises():
+    with pytest.raises(ValueError):
+        SpanEntity(label="PER", start=15, end=10)
+
+
+def test_bounding_box_valid():
+    box = BoundingBox(label="table", xmin=0.1, ymin=0.2, xmax=0.8, ymax=0.9)
+    assert box.xmin < box.xmax
+    assert box.ymin < box.ymax
+
+
+def test_bounding_box_inverted_raises():
+    with pytest.raises(ValueError):
+        BoundingBox(label="table", xmin=0.8, ymin=0.2, xmax=0.1, ymax=0.9)
+
+
+def test_audio_segment_valid():
+    seg = AudioSegment(start_sec=1.5, end_sec=4.2, transcript="Hello world")
+    assert seg.start_sec < seg.end_sec
+
+
+def test_audio_segment_inverted_raises():
+    with pytest.raises(ValueError):
+        AudioSegment(start_sec=5.0, end_sec=2.0, transcript="Invalid")
+
+
+def test_annotation_item_classification():
+    item = AnnotationItem(
+        item_id="task_001",
+        annotator_id="ann_01",
+        task_type=TaskType.CLASSIFICATION,
+        label="positive",
+        duration_seconds=12.5,
     )
-    d = ann.to_dict()
-    assert d["annotator_id"] == "ann_1"
-    assert d["label"] == "factual_error"
-    assert d["error_category"] == "wrong_number"
-
-
-def test_task_item_deserialization():
-    raw = {
-        "id": "t1",
-        "prompt": "What is 2+2?",
-        "response": "5",
-        "ground_truth_label": "factual_error",
-        "domain": "Math",
-        "annotations": [
-            {
-                "annotator_id": "ann_1",
-                "label": "factual_error",
-                "error_category": "math_error",
-                "is_simulated": False
-            }
-        ]
-    }
-    item = AnnotationTaskItem.from_dict(raw)
-    assert item.id == "t1"
-    assert item.ground_truth_label == FactualErrorLabel.FACTUAL_ERROR
-    assert len(item.annotations) == 1
-    assert item.annotations[0].label == FactualErrorLabel.FACTUAL_ERROR
+    assert item.task_type == TaskType.CLASSIFICATION
+    assert item.label == "positive"

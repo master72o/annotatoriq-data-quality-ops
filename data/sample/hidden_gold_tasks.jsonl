@@ -1,0 +1,6 @@
+{"item_id": "gold_clf_001", "task_type": "classification", "expected_label": "toxic", "domain": "safety", "rationale": "Direct personal insult and abusive language."}
+{"item_id": "gold_clf_002", "task_type": "classification", "expected_label": "positive", "domain": "customer_support", "rationale": "Unambiguous customer gratitude and satisfaction."}
+{"item_id": "gold_clf_003", "task_type": "classification", "expected_label": "neutral", "domain": "technical", "rationale": "Factual statement describing hardware specification."}
+{"item_id": "gold_clf_004", "task_type": "classification", "expected_label": "safe", "domain": "safety", "rationale": "Benign informational query about encryption."}
+{"item_id": "gold_ner_001", "task_type": "span_ner", "expected_spans": [{"label": "PER", "start": 0, "end": 14, "text": "Albert Einstein"}, {"label": "DATE", "start": 25, "end": 29, "text": "1879"}], "domain": "biography", "rationale": "Standard historical entities."}
+{"item_id": "gold_box_001", "task_type": "bounding_box", "expected_boxes": [{"label": "document_table", "xmin": 0.1, "ymin": 0.2, "xmax": 0.9, "ymax": 0.6}], "domain": "finance", "rationale": "Full quarterly balance sheet table coordinates."}
