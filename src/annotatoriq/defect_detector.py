@@ -159,4 +159,30 @@ class DefectDetector:
                                 )
                             )
 
+            # 5. Audio Segment checks
+            elif item.task_type == TaskType.AUDIO_SEGMENT:
+                if item.segments is None:
+                    defects.append(
+                        DefectRecord(
+                            item_id=item.item_id,
+                            annotator_id=item.annotator_id,
+                            defect_type=DefectType.SCHEMA_INVALID,
+                            description="Segments field is None for audio_segment task.",
+                            severity="CRITICAL",
+                        )
+                    )
+                else:
+                    for seg in item.segments:
+                        if seg.start_sec >= seg.end_sec:
+                            defects.append(
+                                DefectRecord(
+                                    item_id=item.item_id,
+                                    annotator_id=item.annotator_id,
+                                    defect_type=DefectType.BOUNDARY_INVERSION,
+                                    description=f"Inverted audio segment: start_sec {seg.start_sec} >= end_sec {seg.end_sec}.",
+                                    severity="CRITICAL",
+                                    observed_value=[seg.start_sec, seg.end_sec],
+                                )
+                            )
+
         return defects

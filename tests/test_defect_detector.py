@@ -53,3 +53,25 @@ def test_gold_evaluation_scoring():
     assert "worker_a" in res
     assert res["worker_a"]["gold_accuracy"] == 0.50
     assert "Tier 4" in res["worker_a"]["reliability_tier"]
+
+
+def test_audio_segment_defects():
+    detector = DefectDetector()
+    # Missing segments list
+    item_none = AnnotationItem(
+        item_id="aud_1",
+        annotator_id="worker_b",
+        task_type=TaskType.AUDIO_SEGMENT,
+        segments=None,
+    )
+    defects = detector.scan_annotations([item_none])
+    assert any(d.defect_type == DefectType.SCHEMA_INVALID for d in defects)
+
+
+def test_top_level_package_exports():
+    import annotatoriq
+    assert hasattr(annotatoriq, "DefectDetector")
+    assert hasattr(annotatoriq, "GoldEvaluator")
+    assert hasattr(annotatoriq, "AgreementMetrics")
+    assert hasattr(annotatoriq, "QualityGate")
+
