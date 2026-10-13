@@ -75,3 +75,30 @@ def test_top_level_package_exports():
     assert hasattr(annotatoriq, "AgreementMetrics")
     assert hasattr(annotatoriq, "QualityGate")
 
+
+def test_gold_evaluation_audio():
+    from annotatoriq.schema import AudioSegment
+    gold = [
+        GoldItem(
+            item_id="aud_gold_1",
+            task_type=TaskType.AUDIO_SEGMENT,
+            expected_segments=[
+                AudioSegment(start_sec=0.0, end_sec=2.5, transcript="hello world")
+            ],
+        )
+    ]
+    annotations = [
+        AnnotationItem(
+            item_id="aud_gold_1",
+            annotator_id="worker_audio",
+            task_type=TaskType.AUDIO_SEGMENT,
+            segments=[
+                AudioSegment(start_sec=0.0, end_sec=2.5, transcript="hello world")
+            ],
+        )
+    ]
+    res = GoldEvaluator.evaluate_annotators(annotations, gold)
+    assert "worker_audio" in res
+    assert res["worker_audio"]["gold_accuracy"] == 1.0
+
+

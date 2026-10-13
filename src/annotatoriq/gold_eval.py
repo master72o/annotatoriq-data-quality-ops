@@ -51,6 +51,13 @@ class GoldEvaluator:
                         for b, gb in zip(ann.boxes, gold.expected_boxes)
                     ]
                     is_correct = np.mean(ious) >= 0.60
+            elif ann.task_type == TaskType.AUDIO_SEGMENT and ann.segments and gold.expected_segments:
+                if len(ann.segments) == len(gold.expected_segments):
+                    wers = [
+                        AgreementMetrics.word_error_rate(s.transcript, gs.transcript)
+                        for s, gs in zip(ann.segments, gold.expected_segments)
+                    ]
+                    is_correct = np.mean(wers) <= 0.15
 
             annotator_evals[a_id]["gold_count"] += 1
             if is_correct:
