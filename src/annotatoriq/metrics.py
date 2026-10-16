@@ -214,3 +214,66 @@ class AgreementMetrics:
 
         wer = d[len(ref_words), len(hyp_words)] / len(ref_words)
         return float(min(1.0, wer))
+
+    @staticmethod
+    def bootstrap_agreement_ci(
+        r1: List[str],
+        r2: List[str],
+        n_bootstraps: int = 200,
+        ci: float = 0.95,
+        seed: int = 42,
+    ) -> Dict[str, float]:
+        """
+        Calculates empirical bootstrap confidence intervals for Cohen's Kappa.
+        Returns point estimate, ci_lower, and ci_upper.
+        """
+        if len(r1) != len(r2) or len(r1) == 0:
+            return {"point_estimate": 0.0, "ci_lower": 0.0, "ci_upper": 0.0, "std_error": 0.0}
+
+        point_est = AgreementMetrics.compute_cohens_kappa(r1, r2)
+        n = len(r1)
+        rng = np.random.default_rng(seed)
+
+        boot_scores = []
+        r1_arr = np.array(r1)
+        r2_arr = np.array(r2)
+
+        for _ in range(n_bootstraps):
+            indices = rng.integers(0, n, size=n)
+            sample_r1 = r1_arr[indices].tolist()
+            sample_r2 = r2_arr[indices].tolist()
+            boot_scores.append(AgreementMetrics.compute_cohens_kappa(sample_r1, sample_r2))
+
+        alpha = (1.0 - ci) / 2.0
+        ci_lower = float(np.percentile(boot_scores, alpha * 100))
+        ci_upper = float(np.percentile(boot_scores, (1.0 - alpha) * 100))
+
+        return {
+            "point_estimate": round(point_est, 4),
+            "ci_lower": round(ci_lower, 4),
+            "ci_upper": round(ci_upper, 4),
+            "std_error": round(float(np.std(boot_scores)), 4),
+        }
+
+    @staticmethod
+    def compute_brier_and_calibration(
+        probabilities: List[float],
+        outcomes: List[int],
+    ) -> Dict[str, float]:
+        """
+        Computes the Brier score and mean calibration error for annotator confidence probabilities.
+        """
+        if len(probabilities) != len(outcomes) or len(outcomes) == 0:
+            return {"brier_score": 0.0, "mean_calibration_error": 0.0}
+
+        probs = np.clip(np.asarray(probabilities, dtype=float), 0.0, 1.0)
+        actual = np.asarray(outcomes, dtype=float)
+
+        brier = float(np.mean((probs - actual) ** 2))
+        calibration_error = float(np.abs(np.mean(probs) - np.mean(actual)))
+
+        return {
+            "brier_score": round(brier, 4),
+            "mean_calibration_error": round(calibration_error, 4),
+        }
+
