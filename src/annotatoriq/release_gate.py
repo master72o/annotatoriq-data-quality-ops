@@ -17,6 +17,7 @@ from annotatoriq.metrics import AgreementMetrics
 from annotatoriq.gold_eval import GoldEvaluator
 from annotatoriq.defect_detector import DefectDetector
 from annotatoriq.adjudication import AdjudicationEngine
+from annotatoriq.drift import DriftDetector
 
 
 class QualityGate:
@@ -29,12 +30,15 @@ class QualityGate:
         min_gold_accuracy: float = 0.85,
         max_unresolved_disputes: int = 0,
         max_critical_defects: int = 0,
+        max_drift_defects: int = 2,
     ):
         self.min_alpha = min_krippendorff_alpha
         self.min_kappa = min_fleiss_kappa
         self.min_gold_acc = min_gold_accuracy
         self.max_unresolved = max_unresolved_disputes
         self.max_critical_defects = max_critical_defects
+        self.max_drift_defects = max_drift_defects
+
 
     def evaluate_dataset(
         self,
@@ -111,6 +115,15 @@ class QualityGate:
                 f"Unresolved dispute count ({len(unresolved)}) exceeds maximum allowed ({self.max_unresolved})."
             )
 
+        # 5. Drift and Entropy Collapse Evaluation
+        drift_defects = DriftDetector.detect_annotator_drift(annotations)
+        collapse_defects = DriftDetector.detect_entropy_collapse(annotations)
+        total_drift = len(drift_defects) + len(collapse_defects)
+        if total_drift > self.max_drift_defects:
+            failure_reasons.append(
+                f"Drift & entropy collapse defect count ({total_drift}) exceeds permitted maximum ({self.max_drift_defects})."
+            )
+
         passed = (len(failure_reasons) == 0)
 
         return QualityGateResult(
@@ -120,13 +133,15 @@ class QualityGate:
             gold_accuracy=round(gold_acc, 4),
             unresolved_dispute_count=len(unresolved),
             unresolved_dispute_pct=round(unresolved_pct, 2),
-            defect_count=len(defects),
+            defect_count=len(defects) + total_drift,
             gate_thresholds={
                 "min_alpha": self.min_alpha,
                 "min_kappa": self.min_kappa,
                 "min_gold_accuracy": self.min_gold_acc,
                 "max_unresolved_disputes": self.max_unresolved,
                 "max_critical_defects": self.max_critical_defects,
+                "max_drift_defects": self.max_drift_defects,
             },
             failure_reasons=failure_reasons,
         )
+
