@@ -22,6 +22,8 @@ from annotatoriq.gold_eval import GoldEvaluator
 from annotatoriq.release_gate import QualityGate
 from annotatoriq.adjudication import AdjudicationEngine
 from annotatoriq.metrics import AgreementMetrics
+from annotatoriq.drift import DriftDetector
+from annotatoriq.report_generator import ReportGenerator
 
 st.set_page_config(
     page_title="AnnotatorIQ — AI Data Quality Operations",
@@ -128,6 +130,7 @@ detector = DefectDetector()
 scanned_defects = detector.scan_annotations(annotations)
 defects = schema_defects + scanned_defects
 gold_eval = GoldEvaluator.evaluate_annotators(annotations, gold_items) if gold_items else {}
+fatigue_profiles = DriftDetector.compute_annotator_fatigue_index(annotations)
 
 gate = QualityGate(
     min_krippendorff_alpha=min_alpha,
@@ -221,6 +224,26 @@ with tab2:
     else:
         st.info("No gold standard evaluation records available.")
 
+    st.markdown("---")
+    st.subheader("Worker Fatigue & Entropy Drift Telemetry")
+    st.write("Audits pacing degradation, repetitive labeling patterns, and rapid velocity spikes indicating annotator burnout or botting.")
+
+    if fatigue_profiles:
+        f_df = pd.DataFrame([
+            {
+                "Annotator ID": w_id,
+                "Fatigue Score": prof.get("fatigue_score", 0.0),
+                "Speed Drop": f"{prof.get('speed_drop_ratio', 0.0) * 100:.1f}%",
+                "1st Half Avg Sec": f"{prof.get('first_half_avg_sec', 0.0):.1f}s",
+                "2nd Half Avg Sec": f"{prof.get('second_half_avg_sec', 0.0):.1f}s",
+                "Drift / Alert Status": prof.get("status", "NORMAL"),
+            }
+            for w_id, prof in fatigue_profiles.items()
+        ])
+        st.dataframe(f_df, use_container_width=True)
+    else:
+        st.info("No worker sequence history available for fatigue indexing.")
+
 # TAB 3: ADJUDICATION QUEUE
 with tab3:
     st.subheader(f"Interactive Adjudication Queue ({len(unresolved_disputes)} Unresolved)")
@@ -300,3 +323,22 @@ with tab4:
             file_name="audit_trail.json",
             mime="application/json",
         )
+
+    st.markdown("---")
+    st.subheader("Formal Quality Operations Audit Report")
+    report_md = ReportGenerator.generate_markdown_report(
+        gate_res,
+        gold_eval,
+        defects,
+        fatigue_profiles=fatigue_profiles,
+        dataset_name="sample_production_batch",
+    )
+    with st.expander("📄 View Standardized Markdown Audit Report", expanded=False):
+        st.markdown(report_md)
+
+    st.download_button(
+        "📋 Download Formal Audit Report (Markdown)",
+        data=report_md,
+        file_name="annotatoriq_audit_report.md",
+        mime="text/markdown",
+    )
