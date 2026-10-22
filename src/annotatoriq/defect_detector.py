@@ -24,7 +24,12 @@ class DefectDetector:
         }
 
     def scan_annotations(
-        self, annotations: List[AnnotationItem], min_duration_sec: float = 2.0
+        self,
+        annotations: List[AnnotationItem],
+        min_duration_sec: float = 2.0,
+        min_confidence: float = 0.20,
+        check_repetitive: bool = False,
+        max_consecutive_identical: int = 5,
     ) -> List[DefectRecord]:
         defects: List[DefectRecord] = []
 
@@ -40,6 +45,20 @@ class DefectDetector:
                         severity="MEDIUM",
                         observed_value=item.duration_seconds,
                         expected_value=f">= {min_duration_sec}s",
+                    )
+                )
+
+            # 2. Confidence Anomaly
+            if item.confidence is not None and item.confidence < min_confidence:
+                defects.append(
+                    DefectRecord(
+                        item_id=item.item_id,
+                        annotator_id=item.annotator_id,
+                        defect_type=DefectType.CONFIDENCE_ANOMALY,
+                        description=f"Suspiciously low self-reported confidence ({item.confidence:.2f} < {min_confidence:.2f}).",
+                        severity="MEDIUM",
+                        observed_value=item.confidence,
+                        expected_value=f">= {min_confidence}",
                     )
                 )
 
@@ -184,5 +203,85 @@ class DefectDetector:
                                     observed_value=[seg.start_sec, seg.end_sec],
                                 )
                             )
+
+        if check_repetitive:
+            defects.extend(
+                self.scan_repetitive_patterns(
+                    annotations, max_consecutive_identical=max_consecutive_identical
+                )
+            )
+
+        return defects
+
+    def scan_repetitive_patterns(
+        self,
+        annotations: List[AnnotationItem],
+        max_consecutive_identical: int = 5,
+    ) -> List[DefectRecord]:
+        """
+        Detects straight-lining or click-farming behavior where an annotator
+        repeatedly submits identical responses across consecutive items.
+        """
+        from collections import defaultdict
+
+        grouped: Dict[str, List[AnnotationItem]] = defaultdict(list)
+        for item in annotations:
+            grouped[item.annotator_id].append(item)
+
+        defects: List[DefectRecord] = []
+        for ann_id, items in grouped.items():
+            if len(items) < max_consecutive_identical:
+                continue
+
+            current_label = None
+            run_items: List[AnnotationItem] = []
+
+            for item in items:
+                # Determine normalized label representation across task types
+                label_repr = item.label
+                if label_repr is None and item.spans:
+                    label_repr = ";".join(f"{s.start}:{s.end}:{s.label}" for s in item.spans)
+                elif label_repr is None and item.boxes:
+                    label_repr = ";".join(f"{b.label}:{b.xmin:.2f}:{b.ymin:.2f}" for b in item.boxes)
+                elif label_repr is None and item.segments:
+                    label_repr = ";".join(f"{seg.start_sec:.1f}:{seg.end_sec:.1f}" for seg in item.segments)
+
+                if label_repr is not None and label_repr == current_label:
+                    run_items.append(item)
+                else:
+                    if len(run_items) >= max_consecutive_identical:
+                        for flagged in run_items:
+                            defects.append(
+                                DefectRecord(
+                                    item_id=flagged.item_id,
+                                    annotator_id=ann_id,
+                                    defect_type=DefectType.REPETITIVE_PATTERN,
+                                    description=(
+                                        f"Straight-lining defect: {len(run_items)} consecutive identical "
+                                        f"labels ('{current_label}') submitted by {ann_id}."
+                                    ),
+                                    severity="HIGH",
+                                    observed_value=current_label,
+                                )
+                            )
+                    current_label = label_repr
+                    run_items = [item] if label_repr is not None else []
+
+            # Check trailing run
+            if len(run_items) >= max_consecutive_identical:
+                for flagged in run_items:
+                    defects.append(
+                        DefectRecord(
+                            item_id=flagged.item_id,
+                            annotator_id=ann_id,
+                            defect_type=DefectType.REPETITIVE_PATTERN,
+                            description=(
+                                f"Straight-lining defect: {len(run_items)} consecutive identical "
+                                f"labels ('{current_label}') submitted by {ann_id}."
+                            ),
+                            severity="HIGH",
+                            observed_value=current_label,
+                        )
+                    )
 
         return defects

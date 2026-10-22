@@ -102,3 +102,56 @@ def test_gold_evaluation_audio():
     assert res["worker_audio"]["gold_accuracy"] == 1.0
 
 
+def test_confidence_anomaly_detected():
+    detector = DefectDetector()
+    item = AnnotationItem(
+        item_id="task_conf_low",
+        annotator_id="worker_uncertain",
+        task_type=TaskType.CLASSIFICATION,
+        label="safe",
+        duration_seconds=12.0,
+        confidence=0.12,  # Below default 0.20 threshold
+    )
+    defects = detector.scan_annotations([item])
+    assert any(d.defect_type == DefectType.CONFIDENCE_ANOMALY for d in defects)
+
+
+def test_repetitive_pattern_straight_lining_detected():
+    detector = DefectDetector()
+    # 6 consecutive identical classification tasks
+    items = [
+        AnnotationItem(
+            item_id=f"item_{i}",
+            annotator_id="worker_spammer",
+            task_type=TaskType.CLASSIFICATION,
+            label="positive",
+            duration_seconds=8.0,
+            confidence=0.95,
+        )
+        for i in range(6)
+    ]
+    defects = detector.scan_repetitive_patterns(items, max_consecutive_identical=5)
+    assert len(defects) >= 5
+    assert all(d.defect_type == DefectType.REPETITIVE_PATTERN for d in defects)
+    assert all(d.annotator_id == "worker_spammer" for d in defects)
+
+
+def test_repetitive_pattern_diverse_labels_not_flagged():
+    detector = DefectDetector()
+    labels = ["positive", "negative", "neutral", "positive", "negative"]
+    items = [
+        AnnotationItem(
+            item_id=f"item_div_{i}",
+            annotator_id="worker_honest",
+            task_type=TaskType.CLASSIFICATION,
+            label=lbl,
+            duration_seconds=10.0,
+            confidence=0.90,
+        )
+        for i, lbl in enumerate(labels)
+    ]
+    defects = detector.scan_repetitive_patterns(items, max_consecutive_identical=5)
+    assert len(defects) == 0
+
+
+

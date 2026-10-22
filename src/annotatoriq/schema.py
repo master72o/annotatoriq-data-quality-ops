@@ -23,6 +23,8 @@ class DefectType(str, Enum):
     CONSENSUS_DISAGREEMENT = "consensus_disagreement"
     DRIFT_DETECTED = "drift_detected"
     GOLD_FAILURE = "gold_failure"
+    REPETITIVE_PATTERN = "repetitive_pattern"
+    CONFIDENCE_ANOMALY = "confidence_anomaly"
 
 
 class ReliabilityTier(str, Enum):
