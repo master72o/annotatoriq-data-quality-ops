@@ -51,3 +51,49 @@ def test_quality_gate_passes_on_unanimous():
     res = gate.evaluate_dataset(items)
     assert res.passed is True
     assert res.unresolved_dispute_count == 0
+
+
+def test_confidence_weighted_consensus():
+    items = [
+        AnnotationItem(item_id="i1", annotator_id="a1", task_type=TaskType.CLASSIFICATION, label="positive", confidence=0.95),
+        AnnotationItem(item_id="i1", annotator_id="a2", task_type=TaskType.CLASSIFICATION, label="positive", confidence=0.90),
+        AnnotationItem(item_id="i1", annotator_id="a3", task_type=TaskType.CLASSIFICATION, label="negative", confidence=0.20),
+        AnnotationItem(item_id="i2", annotator_id="a1", task_type=TaskType.CLASSIFICATION, label="positive", confidence=0.52),
+        AnnotationItem(item_id="i2", annotator_id="a2", task_type=TaskType.CLASSIFICATION, label="negative", confidence=0.48),
+    ]
+    consensus = AdjudicationEngine.compute_confidence_weighted_consensus(items)
+    assert consensus["i1"]["consensus_label"] == "positive"
+    assert consensus["i1"]["requires_escalation"] is False
+    assert consensus["i1"]["margin_of_victory"] > 0.70
+    assert consensus["i2"]["requires_escalation"] is True
+
+
+def test_audit_adjudicator_overturn_rates():
+    items = [
+        AnnotationItem(item_id="i1", annotator_id="good_worker", task_type=TaskType.CLASSIFICATION, label="positive"),
+        AnnotationItem(item_id="i1", annotator_id="noisy_worker", task_type=TaskType.CLASSIFICATION, label="negative"),
+        AnnotationItem(item_id="i2", annotator_id="good_worker", task_type=TaskType.CLASSIFICATION, label="neutral"),
+        AnnotationItem(item_id="i2", annotator_id="noisy_worker", task_type=TaskType.CLASSIFICATION, label="positive"),
+    ]
+    adj1 = AdjudicationEngine.resolve_dispute(
+        item_id="i1",
+        task_type=TaskType.CLASSIFICATION,
+        disputed_options=[],
+        final_decision={"label": "positive"},
+        adjudicator_id="expert_1",
+        rationale="Clear positive sentiment",
+    )
+    adj2 = AdjudicationEngine.resolve_dispute(
+        item_id="i2",
+        task_type=TaskType.CLASSIFICATION,
+        disputed_options=[],
+        final_decision={"label": "neutral"},
+        adjudicator_id="expert_1",
+        rationale="Factual statement",
+    )
+    audit = AdjudicationEngine.audit_adjudicator_overturn_rates(items, [adj1, adj2])
+    assert audit["good_worker"]["overturn_rate"] == 0.0
+    assert audit["good_worker"]["calibration_flag"] == "ALIGNED"
+    assert audit["noisy_worker"]["overturn_rate"] == 1.0
+    assert audit["noisy_worker"]["calibration_flag"] == "RECALIBRATE"
+

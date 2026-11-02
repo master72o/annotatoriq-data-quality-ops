@@ -122,3 +122,82 @@ class AdjudicationEngine:
                 })
 
         return release_items
+
+    @staticmethod
+    def compute_confidence_weighted_consensus(
+        annotations: List[AnnotationItem],
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        Computes confidence-weighted majority consensus per item_id.
+        Returns winning label, weighted vote share, margin of victory, and whether
+        expert escalation is recommended (margin < 0.25).
+        """
+        grouped: Dict[str, List[AnnotationItem]] = {}
+        for ann in annotations:
+            if ann.task_type == TaskType.CLASSIFICATION and ann.label is not None:
+                grouped.setdefault(ann.item_id, []).append(ann)
+
+        results: Dict[str, Dict[str, Any]] = {}
+        for item_id, items in grouped.items():
+            label_weights: Dict[str, float] = {}
+            total_weight = 0.0
+            for i in items:
+                w = max(float(i.confidence if i.confidence is not None else 1.0), 0.05)
+                label_weights[i.label] = label_weights.get(i.label, 0.0) + w
+                total_weight += w
+
+            sorted_labels = sorted(label_weights.items(), key=lambda x: x[1], reverse=True)
+            winner_label, winner_weight = sorted_labels[0]
+            runner_up_weight = sorted_labels[1][1] if len(sorted_labels) > 1 else 0.0
+
+            winner_share = winner_weight / total_weight if total_weight > 0 else 0.0
+            margin = (winner_weight - runner_up_weight) / total_weight if total_weight > 0 else 1.0
+
+            results[item_id] = {
+                "consensus_label": winner_label,
+                "weighted_share": round(winner_share, 4),
+                "margin_of_victory": round(margin, 4),
+                "requires_escalation": margin < 0.25,
+                "annotator_count": len(items),
+            }
+
+        return results
+
+    @staticmethod
+    def audit_adjudicator_overturn_rates(
+        raw_annotations: List[AnnotationItem],
+        adjudications: List[AdjudicationRecord],
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        Audits how often each annotator's labels were overturned by expert adjudicators
+        on disputed items, surfacing systematic worker misalignment.
+        """
+        adj_map = {a.item_id: a for a in adjudications}
+        worker_stats: Dict[str, Dict[str, int]] = {}
+
+        for ann in raw_annotations:
+            if ann.item_id not in adj_map or ann.task_type != TaskType.CLASSIFICATION:
+                continue
+            expert_label = adj_map[ann.item_id].final_decision.get("label")
+            if expert_label is None:
+                continue
+
+            stats = worker_stats.setdefault(ann.annotator_id, {"adjudicated_items": 0, "overturned": 0})
+            stats["adjudicated_items"] += 1
+            if ann.label != expert_label:
+                stats["overturned"] += 1
+
+        report: Dict[str, Dict[str, Any]] = {}
+        for worker_id, st in worker_stats.items():
+            total = st["adjudicated_items"]
+            overturned = st["overturned"]
+            rate = overturned / total if total > 0 else 0.0
+            report[worker_id] = {
+                "adjudicated_items": total,
+                "overturned_count": overturned,
+                "overturn_rate": round(rate, 4),
+                "calibration_flag": "RECALIBRATE" if rate > 0.50 else "ALIGNED",
+            }
+
+        return report
+
